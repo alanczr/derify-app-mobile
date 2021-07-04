@@ -1,0 +1,137 @@
+<template>
+  <van-popup class="derify-popup" v-model="showPopup" round :closeable="false" @close="close">
+    <div class="system-popup" v-if="openData">
+      <div class="system-popup-title">开仓确认</div>
+      <div class="system-popup-price">
+        <div class="fc-45">委托价格</div>
+        <div v-if="openData.entrustType === 1">
+          <span class="fc-85">{{openData.amount}}</span>
+          <span class="fc-45">USDT</span>
+        </div>
+        <div v-else>
+          <span class="fc-85">{{curSpotPrice | fck(-8)}}</span>
+          <span class="fc-45">USDT</span>
+        </div>
+      </div>
+      <div class="system-popup-price">
+        <div class="fc-45">开仓类型</div>
+        <div v-if="openType === 1">
+          <span class="fc-red">开空</span>
+          <span class="fc-red">{{leverageConfig[openData.leverage]}}x</span>
+        </div>
+        <div v-if="openType === 0">
+          <span class="fc-green">开多</span>
+          <span class="fc-green">{{leverageConfig[openData.leverage]}}x</span>
+        </div>
+        <div v-if="openType === 2">
+          <span class="fc-yellow">双向对冲</span>
+          <span class="fc-yellow">{{leverageConfig[openData.leverage]}}x</span>
+        </div>
+      </div>
+      <div class="system-popup-price">
+        <div class="fc-45">开仓量</div>
+        <div>
+          <span class="fc-85">{{openData.size}}</span>
+          <span class="fc-45">{{unitConfig[openData.unit]}}</span>
+        </div>
+      </div>
+      <div class="system-popup-price">
+        <div class="fc-45">动仓费</div>
+        <div>
+          <span class="fc-85">0.00</span>
+          <span class="fc-45">USDT</span>
+        </div>
+      </div>
+      <div class="system-popup-price">
+        <div class="fc-45">手续费</div>
+        <div>
+          <span class="fc-85">0.00</span>
+          <span class="fc-45">USDT</span>
+        </div>
+      </div>
+      <div class="system-popup-buttons">
+        <div class="system-popup-button cancel" @click="close">取消</div>
+        <div class="system-popup-button confirm" @click="submitThenClose">确认</div>
+      </div>
+    </div>
+  </van-popup>
+</template>
+
+<script>
+export default {
+  props: {
+    show: {
+      type: Boolean,
+      default: false
+    },
+    type: {
+      type: Number,
+      default: 0
+    },
+    extraData: {
+      type: Object,
+      default: null
+    }
+  },
+  data () {
+    return {
+      showPopup: this.show,
+      openType: this.type, // 0 1 2
+      openData: this.extraData,
+      entrustTypeConfig: [
+        { text: '市价委托', value: 0 },
+        { text: '限价委托', value: 1 }
+      ],
+      leverageConfig: [10, 5, 3],
+      unitConfig: ['USDT', 'ETH', '%']
+    }
+  },
+  watch: {
+    show () {
+      this.openType = this.type
+      this.$store.dispatch('contract/getSpotPrice').then(_ => {
+        this.showPopup = this.show
+      })
+    },
+    extraData: {
+      deep: true,
+      immediate: true,
+      handler () {
+        this.openData = this.extraData
+      }
+    }
+  },
+  computed: {
+    curSpotPrice () {
+      return this.$store.state.contract.curSpotPrice
+    }
+  },
+  methods: {
+    close () {
+      this.$emit('closeOpenPopup', false, this.openType)
+    },
+    submitThenClose () {
+      const size = this.openData.size
+      const side = this.openData.side
+      const leverage = this.leverageConfig[this.openData.leverage]
+      let price = null
+      if (this.openData.entrustType === 0) {
+        price = this.curSpotPrice
+      } else {
+        const a = parseFloat(this.openData.amount) * 1e8
+        price = parseInt(a)
+      }
+      this.$store.dispatch('contract/openPosition', {
+        side,
+        size,
+        price,
+        leverage
+      })
+      this.close()
+    }
+  }
+}
+</script>
+
+<style lang="less" scoped>
+</style>
